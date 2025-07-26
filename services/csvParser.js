@@ -8,11 +8,34 @@ class CSVParser {
   }
 
   /**
+   * Parse CSV from buffer (for uploaded files)
+   */
+  async parseCSVFromBuffer(buffer) {
+    try {
+      const csvContent = buffer.toString('utf8');
+      return this.parseCSVContent(csvContent);
+    } catch (error) {
+      throw new Error(`CSV buffer parsing failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Parse CSV file manually without external libraries
    */
   async parseCSV() {
     try {
       const csvContent = await fs.readFile(this.csvPath, 'utf8');
+      return this.parseCSVContent(csvContent);
+    } catch (error) {
+      throw new Error(`CSV file parsing failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Parse CSV content (common logic for both file and buffer parsing)
+   */
+  parseCSVContent(csvContent) {
+    try {
       const lines = this.splitCSVLines(csvContent);
       
       if (lines.length < 2) {
@@ -42,7 +65,7 @@ class CSVParser {
 
       return users;
     } catch (error) {
-      throw new Error(`CSV parsing failed: ${error.message}`);
+      throw new Error(`CSV content parsing failed: ${error.message}`);
     }
   }
 

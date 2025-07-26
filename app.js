@@ -1,9 +1,10 @@
-const dotenv = require('dotenv').config()
-
 const express = require('express');
+const dotenv = require('dotenv');
 const uploadRoutes = require('./routes/upload');
 const db = require('./db');
 
+// Load environment variables
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,6 +22,29 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     message: 'Kelp Global CSV-to-JSON Converter API is running',
     timestamp: new Date().toISOString()
+  });
+});
+
+// API documentation endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Kelp Global CSV-to-JSON Converter API',
+    version: '1.0.0',
+    endpoints: {
+      'POST /upload': {
+        description: 'Upload and process CSV file',
+        contentType: 'multipart/form-data',
+        field: 'csvFile',
+        maxSize: '10MB',
+        accepts: '.csv files only'
+      },
+      'GET /health': {
+        description: 'Health check endpoint'
+      }
+    },
+    example: {
+      curl: 'curl -X POST -F "csvFile=@data.csv" http://localhost:3000/upload'
+    }
   });
 });
 

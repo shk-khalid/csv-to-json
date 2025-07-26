@@ -1,26 +1,53 @@
 const express = require('express');
+const multer = require('multer');
 const csvParser = require('../services/csvParser');
 const db = require('../db');
 
 const router = express.Router();
 
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    // Only accept CSV files
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
+
 /**
  * POST /upload
- * Parses CSV file, stores data to database, and prints age distribution
+ * Accepts CSV file upload, parses it, stores data to database, and prints age distribution
  */
-router.post('/', async (req, res) => {
+router.post('/', upload.single('csvFile'), async (req, res) => {
   try {
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'No file uploaded',
+        message: 'Please upload a CSV file using the "csvFile" field'
+      });
+    }
+
     console.log('📤 Starting CSV upload and processing...');
+    console.log(`📄 Processing file: ${req.file.originalname} (${req.file.size} bytes)`);
     
     // Parse CSV file
     console.log('📄 Parsing CSV file...');
-    const users = await csvParser.parseCSV();
+    const users = await csvParser.parseCSVFromBuffer(req.file.buffer);
     console.log(`✅ Parsed ${users.length} users from CSV`);
 
     if (users.length === 0) {
       return res.status(400).json({
         error: 'No valid data found',
-        message: 'The CSV file contains no valid user records'
+        message: 'The uploaded CSV file contains no valid user records'
       });
     }
 
@@ -49,8 +76,10 @@ router.post('/', async (req, res) => {
     // Return success response
     res.status(200).json({
       success: true,
-      message: 'CSV data processed successfully',
+      message: `CSV file "${req.file.originalname}" processed successfully`,
       data: {
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
         totalProcessed: users.length,
         totalInserted: insertedCount,
         ageDistribution: ageDistribution
@@ -59,6 +88,29 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Upload processing error:', error.message);
+    
+    // Handle multer errors
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          error: 'File too large',
+          message: 'CSV file must be smaller than 10MB'
+        });
+      }
+      return res.status(400).json({
+        error: 'File upload error',
+        message: error.message
+      });
+    }
+    
+    // Handle file type errors
+    if (error.message === 'Only CSV files are allowed') {
+      return res.status(400).json({
+        error: 'Invalid file type',
+        message: 'Please upload a valid CSV file'
+      });
+    }
+    
     res.status(500).json({
       error: 'Processing failed',
       message: error.message
