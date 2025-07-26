@@ -1,5 +1,4 @@
 const fs = require('fs').promises;
-const path = require('path');
 const jsonBuilder = require('../utils/jsonBuilder');
 
 class CSVParser {
@@ -7,198 +6,122 @@ class CSVParser {
     this.csvPath = process.env.CSV_FILE_PATH || './csv/data.csv';
   }
 
-  /**
-   * Parse CSV from buffer (for uploaded files)
-   */
   async parseCSVFromBuffer(buffer) {
     try {
-      const csvContent = buffer.toString('utf8');
-      return this.parseCSVContent(csvContent);
-    } catch (error) {
-      throw new Error(`CSV buffer parsing failed: ${error.message}`);
+      return this.parseCSVContent(buffer.toString('utf8'));
+    } catch (err) {
+      throw new Error(`Buffer parse failed: ${err.message}`);
     }
   }
 
-  /**
-   * Parse CSV file manually without external libraries
-   */
   async parseCSV() {
     try {
-      const csvContent = await fs.readFile(this.csvPath, 'utf8');
-      return this.parseCSVContent(csvContent);
-    } catch (error) {
-      throw new Error(`CSV file parsing failed: ${error.message}`);
+      const content = await fs.readFile(this.csvPath, 'utf8');
+      return this.parseCSVContent(content);
+    } catch (err) {
+      throw new Error(`File parse failed: ${err.message}`);
     }
   }
 
-  /**
-   * Parse CSV content (common logic for both file and buffer parsing)
-   */
-  parseCSVContent(csvContent) {
-    try {
-      const lines = this.splitCSVLines(csvContent);
-      
-      if (lines.length < 2) {
-        throw new Error('CSV file must contain at least a header row and one data row');
-      }
+  parseCSVContent(content) {
+    const lines = this.splitLines(content);
+    if (lines.length < 2) {
+      throw new Error('CSV needs header + at least one row');
+    }
 
-      const headers = this.parseCSVRow(lines[0]);
-      const users = [];
+    const headers = this.parseRow(lines[0]);
+    this.checkHeaders(headers);
 
-      // Validate required headers
-      this.validateRequiredHeaders(headers);
+    return lines.slice(1).reduce((users, line) => {
+      const row = this.parseRow(line);
+      if (!row.some(cell => cell.trim())) return users;
 
-      // Process each data row
-      for (let i = 1; i < lines.length; i++) {
-        const row = this.parseCSVRow(lines[i]);
-        
-        // Skip empty rows
-        if (row.length === 0 || row.every(cell => !cell.trim())) {
-          continue;
-        }
-
-        const user = this.processRow(headers, row);
-        if (user) {
-          users.push(user);
-        }
-      }
-
+      const user = this.buildUser(headers, row);
+      if (user) users.push(user);
       return users;
-    } catch (error) {
-      throw new Error(`CSV content parsing failed: ${error.message}`);
-    }
+    }, []);
   }
 
-  /**
-   * Split CSV content into lines, handling potential line breaks within quoted fields
-   */
-  splitCSVLines(content) {
+  splitLines(content) {
     const lines = [];
-    let currentLine = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < content.length; i++) {
-      const char = content[i];
-      
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      }
-      
-      if (char === '\n' && !inQuotes) {
-        if (currentLine.trim()) {
-          lines.push(currentLine.trim());
-        }
-        currentLine = '';
-      } else if (char !== '\r') {
-        currentLine += char;
+    let buf = '', inQuotes = false;
+
+    for (const ch of content) {
+      if (ch === '"') inQuotes = !inQuotes;
+      if (ch === '\n' && !inQuotes) {
+        if (buf.trim()) lines.push(buf.trim());
+        buf = '';
+      } else if (ch !== '\r') {
+        buf += ch;
       }
     }
-    
-    // Add the last line if it exists
-    if (currentLine.trim()) {
-      lines.push(currentLine.trim());
-    }
-    
+    if (buf.trim()) lines.push(buf.trim());
     return lines;
   }
 
-  /**
-   * Parse a single CSV row, handling quoted fields with commas
-   */
-  parseCSVRow(row) {
+  parseRow(row) {
     const cells = [];
-    let currentCell = '';
-    let inQuotes = false;
-    
+    let buf = '', inQuotes = false;
+
     for (let i = 0; i < row.length; i++) {
-      const char = row[i];
-      
-      if (char === '"') {
-        if (inQuotes && row[i + 1] === '"') {
-          // Handle escaped quotes
-          currentCell += '"';
-          i++; // Skip next quote
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ',' && !inQuotes) {
-        cells.push(currentCell.trim());
-        currentCell = '';
+      const ch = row[i];
+      if (ch === '"' && row[i + 1] === '"' && inQuotes) {
+        buf += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        cells.push(buf.trim());
+        buf = '';
       } else {
-        currentCell += char;
+        buf += ch;
       }
     }
-    
-    // Add the last cell
-    cells.push(currentCell.trim());
-    
+    cells.push(buf.trim());
     return cells;
   }
 
-  /**
-   * Validate that required headers are present
-   */
-  validateRequiredHeaders(headers) {
-    const requiredHeaders = ['name.firstName', 'name.lastName', 'age'];
-    const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
-    
-    if (missingHeaders.length > 0) {
-      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+  checkHeaders(headers) {
+    const required = ['name.firstName', 'name.lastName', 'age'];
+    const missing = required.filter(h => !headers.includes(h));
+    if (missing.length) {
+      throw new Error(`Missing headers: ${missing.join(', ')}`);
     }
   }
 
-  /**
-   * Process a single row and convert it to user object
-   */
-  processRow(headers, row) {
+  buildUser(headers, row) {
     try {
-      // Create key-value pairs from headers and row data
       const data = {};
-      for (let i = 0; i < headers.length && i < row.length; i++) {
-        if (row[i] && row[i].trim()) {
-          data[headers[i]] = row[i].trim();
-        }
-      }
+      headers.forEach((h, i) => {
+        if (row[i]?.trim()) data[h] = row[i].trim();
+      });
 
-      // Build nested JSON structure
-      const nestedData = jsonBuilder.buildNestedObject(data);
+      const nested = jsonBuilder.buildNestedObject(data);
+      const { name, age: ageStr, address } = nested;
+      if (!name?.firstName || !name?.lastName || !ageStr) return null;
 
-      // Validate required fields
-      if (!nestedData.name?.firstName || !nestedData.name?.lastName || !nestedData.age) {
-        console.warn('Skipping row due to missing required fields:', data);
-        return null;
-      }
+      const age = parseInt(ageStr, 10);
+      if (isNaN(age) || age < 0 || age > 150) return null;
 
-      // Convert age to integer
-      const age = parseInt(nestedData.age);
-      if (isNaN(age) || age < 0 || age > 150) {
-        console.warn('Skipping row due to invalid age:', nestedData.age);
-        return null;
-      }
-
-      // Build user object according to database schema
       const user = {
-        name: `${nestedData.name.firstName} ${nestedData.name.lastName}`,
-        age: age,
-        address: nestedData.address || null,
+        name: `${name.firstName} ${name.lastName}`,
+        age,
+        address: address || null,
         additional_info: {}
       };
 
-      // Add any fields that don't belong to name, age, or address to additional_info
-      Object.keys(nestedData).forEach(key => {
-        if (key !== 'name' && key !== 'age' && key !== 'address') {
-          user.additional_info[key] = nestedData[key];
+      Object.keys(nested).forEach(key => {
+        if (!['name', 'age', 'address'].includes(key)) {
+          user.additional_info[key] = nested[key];
         }
       });
 
-      // If additional_info is empty, set it to null
-      if (Object.keys(user.additional_info).length === 0) {
+      if (!Object.keys(user.additional_info).length) {
         user.additional_info = null;
       }
 
       return user;
-    } catch (error) {
-      console.warn('Error processing row:', error.message, row);
+    } catch {
       return null;
     }
   }

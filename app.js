@@ -1,102 +1,93 @@
+require('dotenv').config();
 const express = require('express');
-const dotenv = require('dotenv');
 const uploadRoutes = require('./routes/upload');
 const db = require('./db');
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// parse JSON and form data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// file upload routes
 app.use('/upload', uploadRoutes);
 
-// Health check endpoint
+// quick health check
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    message: 'Kelp Global CSV-to-JSON Converter API is running',
+  res.status(200).json({
+    status: 'OK',
+    message: 'CSV-to-JSON Converter API is operational',
     timestamp: new Date().toISOString()
   });
 });
 
-// API documentation endpoint
+// basic API info
 app.get('/', (req, res) => {
   res.json({
-    message: 'Kelp Global CSV-to-JSON Converter API',
+    name: 'Kelp Global CSV-to-JSON Converter',
     version: '1.0.0',
     endpoints: {
       'POST /upload': {
         description: 'Upload and process CSV file',
-        contentType: 'multipart/form-data',
         field: 'csvFile',
         maxSize: '10MB',
-        accepts: '.csv files only'
+        accepts: '.csv'
       },
       'GET /health': {
-        description: 'Health check endpoint'
+        description: 'Service health check'
       }
     },
-    example: {
-      curl: 'curl -X POST -F "csvFile=@data.csv" http://localhost:3000/upload'
-    }
+    example: 'curl -X POST -F "csvFile=@data.csv" http://localhost:' + PORT + '/upload'
   });
 });
 
-// Error handling middleware
+// error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
+  console.error('Server Error:', err);
   res.status(500).json({
     error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    message: process.env.NODE_ENV === 'development'
+      ? err.message
+      : 'An unexpected error occurred'
   });
 });
 
-// 404 handler
+// catch-all for nonexistent routes
 app.use('*', (req, res) => {
   res.status(404).json({
     error: 'Not Found',
-    message: 'The requested endpoint does not exist'
+    message: 'Endpoint does not exist'
   });
 });
 
-// Initialize database and start server
 async function startServer() {
   try {
-    // Test Supabase connection
     await db.testConnection();
-    console.log('✅ Supabase connection established');
-
-    // Check users table (create via Supabase if needed)
+    console.log('Connected to Supabase database');
     await db.createUsersTable();
-    console.log('✅ Users table ready');
+    console.log('Ensured users table exists');
 
     app.listen(PORT, () => {
-      console.log(`🚀 Kelp Global CSV-to-JSON Converter API running on port ${PORT}`);
-      console.log(`🗄️  Using Supabase database`);
-      console.log(`📊 Health check: http://localhost:${PORT}/health`);
-      console.log(`📤 Upload endpoint: http://localhost:${PORT}/upload`);
+      console.log(`Server listening on port ${PORT}`);
+      console.log(`Health check available at http://localhost:${PORT}/health`);
+      console.log(`Upload endpoint at http://localhost:${PORT}/upload`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
+    console.error('Startup failed:', error.message);
     process.exit(1);
   }
 }
 
-// Graceful shutdown
+// graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
+  console.log('Shutting down...');
   try {
     await db.closeConnection();
-    console.log('✅ Supabase connection closed');
+    console.log('Database connection closed');
     process.exit(0);
-  } catch (error) {
-    console.error('❌ Error during shutdown:', error.message);
+  } catch (err) {
+    console.error('Shutdown error:', err.message);
     process.exit(1);
   }
 });

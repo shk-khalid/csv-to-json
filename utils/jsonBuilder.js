@@ -1,113 +1,43 @@
-/**
- * Utility class for building nested JSON objects from dot-separated keys
- */
 class JSONBuilder {
-  /**
-   * Convert flat object with dot-separated keys to nested object
-   * Example: { 'name.firstName': 'John', 'name.lastName': 'Doe' } 
-   * becomes: { name: { firstName: 'John', lastName: 'Doe' } }
-   */
-  buildNestedObject(flatObject) {
+  buildNestedObject(flat) {
     const result = {};
-
-    Object.keys(flatObject).forEach(key => {
-      const value = flatObject[key];
-      this.setNestedValue(result, key, value);
+    Object.keys(flat).forEach(key => {
+      this.setNestedValue(result, key, flat[key]);
     });
-
     return result;
   }
 
-  /**
-   * Set a nested value in an object using dot notation
-   */
   setNestedValue(obj, path, value) {
     const keys = path.split('.');
-    let current = obj;
-
-    // Navigate to the parent object
+    let cur = obj;
     for (let i = 0; i < keys.length - 1; i++) {
-      const key = keys[i];
-      
-      if (!current[key] || typeof current[key] !== 'object') {
-        current[key] = {};
-      }
-      
-      current = current[key];
+      const k = keys[i];
+      if (!cur[k] || typeof cur[k] !== 'object') cur[k] = {};
+      cur = cur[k];
     }
-
-    // Set the final value
-    const finalKey = keys[keys.length - 1];
-    current[finalKey] = this.convertValue(value);
+    cur[keys[keys.length - 1]] = this.convertValue(value);
   }
 
-  /**
-   * Convert string values to appropriate types
-   */
-  convertValue(value) {
-    if (typeof value !== 'string') {
-      return value;
-    }
-
-    // Trim whitespace
-    value = value.trim();
-
-    // Handle empty strings
-    if (value === '') {
-      return '';
-    }
-
-    // Try to convert to number
-    if (/^\d+$/.test(value)) {
-      return parseInt(value, 10);
-    }
-
-    if (/^\d*\.\d+$/.test(value)) {
-      return parseFloat(value);
-    }
-
-    // Handle boolean strings
-    if (value.toLowerCase() === 'true') {
-      return true;
-    }
-    
-    if (value.toLowerCase() === 'false') {
-      return false;
-    }
-
-    // Handle null/undefined strings
-    if (value.toLowerCase() === 'null') {
-      return null;
-    }
-
-    if (value.toLowerCase() === 'undefined') {
-      return undefined;
-    }
-
-    // Return as string
-    return value;
+  convertValue(v) {
+    if (typeof v !== 'string') return v;
+    const s = v.trim();
+    if (s === '') return '';
+    if (/^\d+$/.test(s)) return parseInt(s, 10);
+    if (/^\d*\.\d+$/.test(s)) return parseFloat(s);
+    if (s.toLowerCase() === 'true') return true;
+    if (s.toLowerCase() === 'false') return false;
+    if (s.toLowerCase() === 'null') return null;
+    if (s.toLowerCase() === 'undefined') return undefined;
+    return s;
   }
 
-  /**
-   * Get a nested value from an object using dot notation
-   */
   getNestedValue(obj, path) {
-    const keys = path.split('.');
-    let current = obj;
-
-    for (const key of keys) {
-      if (current === null || current === undefined || typeof current !== 'object') {
-        return undefined;
-      }
-      current = current[key];
-    }
-
-    return current;
+    return path.split('.').reduce((cur, k) => {
+      if (!cur || typeof cur !== 'object') return undefined;
+      return cur[k];
+    }, obj);
   }
 
-  /**
-   * Check if a nested path exists in an object
-   */
   hasNestedPath(obj, path) {
     return this.getNestedValue(obj, path) !== undefined;
   }
