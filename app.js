@@ -25,7 +25,7 @@ app.get('/health', (req, res) => {
 // basic API info
 app.get('/', (req, res) => {
   res.json({
-    name: 'Kelp Global CSV-to-JSON Converter',
+    name: 'CSV-to-JSON Converter',
     version: '1.0.0',
     endpoints: {
       'POST /upload': {

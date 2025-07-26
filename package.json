@@ -1,7 +1,7 @@
 {
-  "name": "kelp-csv-json-converter",
+  "name": "csv-json-converter",
   "version": "1.0.0",
-  "description": "CSV to JSON converter API for Kelp Global",
+  "description": "Node.js API that parses nested CSV files into JSON, stores the data in PostgreSQL (via Supabase), and generates age distribution reports.",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -26,6 +26,6 @@
     "express",
     "postgresql"
   ],
-  "author": "Kelp Global",
-  "license": "ISC"
+  "author": "Khalid Shaikh",
+  "license": "MIT"
 }
