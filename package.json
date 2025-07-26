@@ -1,0 +1,30 @@
+{
+  "name": "kelp-csv-json-converter",
+  "version": "1.0.0",
+  "description": "CSV to JSON converter API for Kelp Global",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.52.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "csv",
+    "json",
+    "converter",
+    "api",
+    "express",
+    "postgresql"
+  ],
+  "author": "Kelp Global",
+  "license": "ISC"
+}
